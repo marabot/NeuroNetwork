@@ -63,7 +63,6 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="engine\entities\dentrite.cs" />
     <Compile Include="engine\entities\Layer.cs" />
     <Compile Include="engine\entities\Neurone.cs" />
     <Compile Include="engine\IrisFlower.cs" />
