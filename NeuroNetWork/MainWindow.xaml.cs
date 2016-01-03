@@ -37,6 +37,11 @@ namespace NeuroNetWork
         public MainWindow()
         {
             InitializeComponent();
+
+            System.Globalization.CultureInfo customCulture = (System.Globalization.CultureInfo)System.Threading.Thread.CurrentThread.CurrentCulture.Clone();
+            customCulture.NumberFormat.NumberDecimalSeparator = ".";
+
+            System.Threading.Thread.CurrentThread.CurrentCulture = customCulture;
             TextBox txtNumber = new TextBox();
         }
 
@@ -49,10 +54,7 @@ namespace NeuroNetWork
             neuroNet = new NeuroNet(Convert.ToInt16(InputCount.Text), Convert.ToInt16(NeuroneCount.Text), Convert.ToInt16(OutputCount.Text));
 
             irisFlowerSet = new IrisFlower();
-
-
-
-            InputValuesList.ItemsSource = inputs;
+            WeightBiasBox.ItemsSource = neuroNet.getWeightsList();
 
             Color CreatedColor = Color.FromRgb(0, 200, 0);
             createButton.Background = new SolidColorBrush(CreatedColor);
@@ -66,54 +68,30 @@ namespace NeuroNetWork
             inputs[2] = Convert.ToDouble(input3.Text);
             inputs[3] = Convert.ToDouble(input4.Text);
 
-            Normalize(inputs);
-            ResultGrid.ItemsSource = inputs;
+            irisFlowerSet.NormalizeOneInput(inputs);
+            normalizedInputsBox.ItemsSource = inputs;
             List<double> listOuputResult = neuroNet.Resolve(inputs)[1].ToList();
-            OutputList.ItemsSource = listOuputResult;
+            OutputBox.ItemsSource = listOuputResult;
         }
 
         private void train_Click(object sender, RoutedEventArgs e)
         {
-
             Color trainingColor = Color.FromRgb(0, 150, 150);
             train.Background = new SolidColorBrush(trainingColor);
+         
+            neuroNet.Train(irisFlowerSet.trainDatas, maxEpochs, learnRate, momentum, weightDecay);
 
-            neuroNet.MakeTest(irisFlowerSet.normalizedAllDatas, ref irisFlowerSet.trainDatas, ref irisFlowerSet.testDatas);
-            neuroNet.Train(irisFlowerSet.allData, maxEpochs, learnRate, momentum, weightDecay);
-
-            WeightList.ItemsSource = neuroNet.getWeightsList();
-
+            WeightBiasFinalBox.ItemsSource = neuroNet.getWeightsList();
+            epochsBox.Text = neuroNet.GetLastEpochs().ToString();
+            
+            accuracyTrainBox.Text= neuroNet.Accuracy(irisFlowerSet.trainDatas).ToString();
+            accuracyTestBox.Text = neuroNet.Accuracy(irisFlowerSet.testDatas).ToString();
 
             Color trainedColor = Color.FromRgb(0, 200, 0);
 
             train.Background = new SolidColorBrush(trainedColor);
         }
 
-        private void Normalize(double[] dataMatrix)
-        {
-            // normalize specified cols by computing (x - mean) / sd for each value
-
-            double sum = 0.0;
-            for (int i = 0; i < dataMatrix.Length; ++i)
-                sum += dataMatrix[i];
-            double mean = sum / dataMatrix.Length;
-            sum = 0.0;
-            for (int i = 0; i < dataMatrix.Length; ++i)
-                sum += (dataMatrix[i] - mean) * (dataMatrix[i] - mean);
-            // thanks to Dr. W. Winfrey, Concord Univ., for catching bug in original code
-            double sd = Math.Sqrt(sum / (dataMatrix.Length - 1));
-            for (int i = 0; i < dataMatrix.Length; ++i)
-                dataMatrix[i] = (dataMatrix[i] - mean) / sd;
-
-        }
-        private double[] NormalizeInputs(double[] inputs, IrisFlower datas)
-        {
-            for (int i = 0; i < inputs.Length; i++)
-            {
-                inputs[i] = -1 + ((inputs[i] - datas.normBounds[i, 0]) / datas.normBounds[i, 2]);
-            }
-
-            return inputs;
-        }
+       
     }
 }

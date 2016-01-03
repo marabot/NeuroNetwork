@@ -8,19 +8,25 @@ namespace NeuroNetwork.engine
 {
     class IrisFlower
     {
+       private static Random rnd;
 
        public double[][] allData;
        public double[][] trainDatas;
        public double[][] testDatas;
-       public double[][] normalizedAllDatas;
-       public double[,] normBounds;
 
+
+       public double[] mainNormalizeMean;
+       public double[] mainNormalizeSd;
 
         public IrisFlower()
         {
+            rnd = new Random(0);
 
             allData = new double[150][];
-          
+
+
+            mainNormalizeMean = new double[4];
+            mainNormalizeSd = new double[4];
 
               allData[0] = new double[] { 5.1, 3.5, 1.4, 0.2, 0, 0, 1 }; // sepal length, width, petal length, width
               allData[1] = new double[] { 4.9, 3.0, 1.4, 0.2, 0, 0, 1 }; // Iris setosa = 0 0 1
@@ -187,16 +193,16 @@ namespace NeuroNetwork.engine
               allData[148] = new double[] { 6.2, 3.4, 5.4, 2.3, 1, 0, 0 };
               allData[149] = new double[] { 5.9, 3.0, 5.1, 1.8, 1, 0, 0 };
 
-            
-
-            
-            normalizedAllDatas = allData;
-            int[] cols=new int[4] {0,1,2,3};
-            Normalize(normalizedAllDatas,cols ); 
+            Normalize(allData);
+         
+            MakeTest(allData, ref trainDatas, ref testDatas);
+     
         }
 
-        private void Normalize(double[][] dataMatrix, int[] cols)
+        public void Normalize(double[][] dataMatrix)
         {
+            double[] cols = new double[] { 0, 1, 2, 3 };
+         
             // normalize specified cols by computing (x - mean) / sd for each value
             foreach (int col in cols)
             {
@@ -211,54 +217,124 @@ namespace NeuroNetwork.engine
                 double sd = Math.Sqrt(sum / (dataMatrix.Length - 1));
                 for (int i = 0; i < dataMatrix.Length; ++i)
                     dataMatrix[i][col] = (dataMatrix[i][col] - mean) / sd;
-            }
+
+                mainNormalizeMean[col] = mean;
+                mainNormalizeSd[col] = sd;
+               
+            } 
         }
 
-
-        private void NormalizeMinMaxAllDatas()
+        public void NormalizeOneInput(double[] inputs)
         {
-            normBounds = new double[4, 3];
-
-            for (int i = 0; i < 4; i++)
+            double[] cols = new double[] { 0, 1, 2, 3 };
+            
+            // normalize specified cols by computing (x - mean) / sd for each value
+            foreach (int col in cols)
             {
-                normBounds[i, 0] = allData[0].ElementAt(i);
-                normBounds[i, 1] = allData[0].ElementAt(i);
-            }
-
-            // trouve les min et max pour chaque input
-            foreach (double[] arrayD in allData)
-            {
-                for (int i = 0; i < 4; i++)
-                {
-                    if (arrayD.ElementAt(i) < normBounds[i, 0]) normBounds[i, 0] = arrayD.ElementAt(i);
-                    if (arrayD.ElementAt(i) > normBounds[i, 1]) normBounds[i, 1] = arrayD.ElementAt(i);
-                }    
-            }
-
-            //stock max-min pour chaque input
-            for (int i = 0; i < 4; i++)
-            {
-                normBounds[i, 2] = normBounds[i, 1] - normBounds[i, 0];
-
-            }
-
-            for (int i = 0; i < allData.GetLength(0); i++)
-            {
-                normalizedAllDatas[i] = new double[7];
-                for (int j = 0; j < 4; j++)
-                {
-                    normalizedAllDatas[i][j] = -1 + ((allData[i][j] - normBounds[j, 0]) / normBounds[j, 2]);
-
-
-                }
-
-                for (int k = 4; k < 7; k++)
-                {
-                    normalizedAllDatas[i][k] = allData[i][k];
-                }
+                inputs[col] = (inputs[col] - mainNormalizeMean[col]) / mainNormalizeSd[col];
+                                
             }
         }
 
+
+        private void MakeTrainTest(double[][] allData, out double[][] trainData, out double[][] testData)
+        {
+            // split allData into 80% trainData and 20% testData
+            Random rnd = new Random(0);
+            int totRows = allData.Length;
+            int numCols = allData[0].Length;
+
+            int trainRows = (int)(totRows * 0.80); // hard-coded 80-20 split
+            int testRows = totRows - trainRows;
+
+            trainData = new double[trainRows][];
+            testData = new double[testRows][];
+
+            int[] sequence = new int[totRows]; // create a random sequence of indexes
+            for (int i = 0; i < sequence.Length; ++i)
+                sequence[i] = i;
+
+            for (int i = 0; i < sequence.Length; ++i)
+            {
+                int r = rnd.Next(i, sequence.Length);
+                int tmp = sequence[r];
+                sequence[r] = sequence[i];
+                sequence[i] = tmp;
+            }
+
+            int si = 0; // index into sequence[]
+            int j = 0; // index into trainData or testData
+
+            for (; si < trainRows; ++si) // first rows to train data
+            {
+                trainData[j] = new double[numCols];
+                int idx = sequence[si];
+                Array.Copy(allData[idx], trainData[j], numCols);
+                ++j;
+            }
+
+            j = 0; // reset to start of test data
+            for (; si < totRows; ++si) // remainder to test data
+            {
+                testData[j] = new double[numCols];
+                int idx = sequence[si];
+                Array.Copy(allData[idx], testData[j], numCols);
+                ++j;
+            }
+        } // MakeTrainTest
+
+        // split en 80% train et 20% test de façon aléatoire
+        private void MakeTest(double[][] allDatas, ref double[][] trainDatas, ref double[][] testDatas)
+        {
+            int trainCount = Convert.ToInt16(0.8 * allDatas.Length);
+            int testCount = allDatas.Length - trainCount;
+
+            trainDatas = new double[trainCount][];
+            testDatas = new double[testCount][];
+
+            List<int> indexList = new List<int>();
+            for (int i = 149; i >= 0; i--)
+            {
+                indexList.Add(i);
+            }
+
+            /// pour chque ligne du alldatas
+            for (int j = 0; j < allDatas.Length; j++)
+            {
+                int randomIndex = rnd.Next(0, indexList.Count);
+
+                /// soit aucun index atteint, soit un des deux, soit aucun
+                if (trainCount > 0 && testCount > 0)
+                {
+                    int randomDataSet = rnd.Next(0, 1);
+                    if (randomDataSet == 0)
+                    {
+                        trainDatas[trainCount - 1] = allDatas[indexList.ElementAt(randomIndex)];
+                        indexList.Remove(randomIndex);
+                        trainCount--;
+                    }
+                    else
+                    {
+                        testDatas[testCount - 1] = allDatas[indexList.ElementAt(randomIndex)];
+                        indexList.Remove(randomIndex);
+                        testCount--;
+                    }
+                }
+                else if (trainCount > 0)
+                {
+                    trainDatas[trainCount - 1] = allDatas[indexList.ElementAt(randomIndex)];
+                    indexList.Remove(randomIndex);
+                    trainCount--;
+                }
+                else
+                {
+                    testDatas[testCount - 1] = allDatas[indexList.ElementAt(randomIndex)];
+                    indexList.Remove(randomIndex);
+                    testCount--;
+                }
+            }
+        }
+        
     
     }
 }

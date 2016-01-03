@@ -10,7 +10,7 @@ namespace NeuroNetwork.engine
 {
     class NeuroNet
     {
-        private static Random rnd;
+        private static Random rnd= new Random(0);
 
         private double[,] arrayIhWeight;
         private double[,] arrayHoWeight;
@@ -18,24 +18,23 @@ namespace NeuroNetwork.engine
         private double[] arrayBiasOutput;
 
         private List<double> listInput;
-        private List<double>[] listResult;
-
-
-
-        // back-prop momentum specific arrays (could be local to method Train)
+        private List<double>[] lastListResult;
+       
         private double[,] ihPrevWeightsDelta;  // for momentum with back-propagation
         private double[] hPrevBiasesDelta;
         private double[,] hoPrevWeightsDelta;
         private double[] oPrevBiasesDelta;
 
-        private double biasStart;
+        // back-prop specific arrays (these could be local to method UpdateWeights)
+        private double[] oGrads ; // output gradients for back-propagation
+        private double[] hGrads ; // hidden gradients for back-propagation
+       
+        int lastTrainEpochs;       
 
-        ////////////////////////////
 
+    
         public NeuroNet(int inputscount, int hiddenCount, int outputCount) {
-
-            rnd = new Random(0);
-            biasStart = 2;
+                     
             arrayIhWeight = new double[inputscount, hiddenCount];
             arrayHoWeight = new double[hiddenCount, outputCount];
             arrayBiasHidden = new double[arrayIhWeight.GetLength(1)];
@@ -46,12 +45,19 @@ namespace NeuroNetwork.engine
 
             hPrevBiasesDelta = new double[arrayIhWeight.GetLength(1)];
             oPrevBiasesDelta = new double[arrayHoWeight.GetLength(1)];
-                    
+            lastTrainEpochs = -1;
 
+            oGrads = new double[arrayHoWeight.GetLength(1)];
+            hGrads = new double[arrayHoWeight.GetLength(0)];
+
+
+          
+
+            
             /////////// Initialisation des poids et des biais /////////////////////////////
             double lo = -0.01;
             double hi = 0.01;
-            for (int i = 0; i < inputscount; i++)
+            for (int i = 0; i < arrayIhWeight.GetLength(0); i++)
             {
              
                 for (int j = 0; j < arrayIhWeight.GetLength(1); j++)
@@ -60,20 +66,26 @@ namespace NeuroNetwork.engine
                 }
             }
 
-            for (int i = 0; i < arrayIhWeight.GetLength(1); i++)
+            for (int i = 0; i < arrayHoWeight.GetLength(0); i++)
             {
-                arrayBiasHidden[i] = biasStart;
+                arrayBiasHidden[i] = (hi - lo) * rnd.NextDouble() + lo;
                 for (int j = 0; j < arrayHoWeight.GetLength(1); j++)
                 {
-                    if (i == 0) arrayBiasOutput[j] = biasStart;
+                   arrayBiasOutput[j] = (hi - lo) * rnd.NextDouble() + lo;
                     arrayHoWeight[i, j] = (hi - lo) * rnd.NextDouble() + lo;
                 }
-            }           
+            }    
+                  
         }
 
+        
+
+        //////////////////////////////////
+        /// Resolve Functions
+        ///////////////////////////////////
         public List<double>[] Resolve(double[] inputsList)
         {
-            listResult = new List<double>[2];
+            List<double>[] listResult = new List<double>[2];  // en 0 les résultats de la couche hidden, en 1 les résultats de la couche output
            
             for (int i = 0; i < 2; i++)
             {
@@ -82,61 +94,86 @@ namespace NeuroNetwork.engine
             listInput = inputsList.ToList();           
 
             // couche hidden
-            for (int i = 0; i < arrayIhWeight.GetLength(1); i++)
+            for (int i = 0; i < arrayIhWeight.GetLength(1); ++i)
             {
                 double weightInputSum = arrayBiasHidden[i];
-                int inputIndex = 0;
-                for(int j=0;j<listInput.Count;j++)
+               
+                for(int j=0;j<listInput.Count;++j)
                 {
-                    weightInputSum = weightInputSum + arrayIhWeight[inputIndex, i] * listInput.ElementAt<double>(inputIndex);
-                    inputIndex++;
+                    weightInputSum +=  (arrayIhWeight[j, i] * listInput.ElementAt(j));
+                  
                 }
                 listResult[0].Add(HyperbolicTan(weightInputSum)); // remplit la liste des résultats avec les valeurs après activation des neurones hidden
             }
 
             // couche Output
             List<double> listTemp = new List<double>();
-            for (int i = 0; i < arrayHoWeight.GetLength(1); i++)
+            for (int i = 0; i < arrayHoWeight.GetLength(1);++i)
             {
                 double weightInputSum = arrayBiasOutput[i];
-
-
-                int inputIndex = 0;
-                for (int j = 0; j < arrayHoWeight.GetLength(0); j++)
+             
+                for (int j = 0; j < arrayHoWeight.GetLength(0); ++j)
                 {
-                    weightInputSum = weightInputSum + arrayHoWeight[inputIndex, i] * listResult[0].ElementAt<double>(inputIndex);
-                    inputIndex++;
-
+                    weightInputSum +=  (arrayHoWeight[j, i] * listResult[0].ElementAt(j));
+                   
                 }
                 listTemp.Add(weightInputSum); // remplit la liste des résultatsTemporaire avec les valeurs AVANT activation des neurones output               
             }
 
+            
             double[] arrayWeightSum = new double[arrayHoWeight.GetLength(1)];
             int neuroneIndex = 0;
             foreach (double d in listTemp)
             {
                 arrayWeightSum[neuroneIndex++] = d;
             }
-
-
+            
             double[] resultTemp = Softmax(arrayWeightSum);
             for (int i = 0; i < resultTemp.Length; i++)
             {
                 listResult[1].Add(resultTemp[i]);
             }
-
+            
             return listResult;
         }
 
+        private double HyperbolicTan(double x)
+        {
+            if (x < -20.0) return -1.0; // approximation is correct to 30 decimals
+            else if (x > 20.0) return 1.0;
+            else return Math.Tanh(x);
+        }
 
+        private double[] Softmax(double[] oSums)
+        {
+           
+            double max = oSums[0];
+            for (int i = 0; i < oSums.Length; ++i)
+                if (oSums[i] > max) max = oSums[i];
+          
+            double scale = 0.0;
+            for (int i = 0; i < oSums.Length; ++i)
+                scale += Math.Exp(oSums[i] - max);
+
+            double[] result = new double[oSums.Length];
+            for (int i = 0; i < oSums.Length; ++i)
+                result[i] = Math.Exp(oSums[i] - max) / scale;
+
+            return result; 
+        }
+
+
+        //////////////////////////////////
+        /// Getters 
+        //////////////////////////////////
         public List<double> GetListInput()
         {
             return listInput;
         }
 
-        public List<double>[] GetListResult()
+        public List<double>[] GetLastListResult()
         {
-            return listResult;
+            return lastListResult;
         }
 
         public double[,] GetArrayIhWeight()
@@ -149,75 +186,54 @@ namespace NeuroNetwork.engine
             return arrayHoWeight;
         }
 
-
-        private double HyperbolicTan(double x)
+        public int GetLastEpochs()
         {
-            return Math.Tanh(x);
+            return lastTrainEpochs;
         }
 
 
-        private double[] Softmax(double[] oSums)
-        {
-            // determine max output sum
-            // does all output nodes at once so scale doesn't have to be re-computed each time
-            double max = oSums[0];
-            for (int i = 0; i < oSums.Length; ++i)
-                if (oSums[i] > max) max = oSums[i];
-
-            // determine scaling factor -- sum of exp(each val - max)
-            double scale = 0.0;
-            for (int i = 0; i < oSums.Length; ++i)
-                scale += Math.Exp(oSums[i] - max);
-
-            double[] result = new double[oSums.Length];
-            for (int i = 0; i < oSums.Length; ++i)
-                result[i] = Math.Exp(oSums[i] - max) / scale;
-
-            return result; // now scaled so that xi sum to 1.0
-        }
-
+        //////////////////////////////////
+        /// Training functions
+        //////////////////////////////////
         private void UpdateWeights(double[] tValues, double learnRate, double momentum, double weightDecay)
         {
-
-            // back-prop specific arrays (these could be local to method UpdateWeights)
-            double[] oGrads = new double[arrayHoWeight.GetLength(1)]; // output gradients for back-propagation
-            double[] hGrads = new double[arrayHoWeight.GetLength(0)]; // hidden gradients for back-propagation
-
+         
             // compute ouput grad
-            for (int i = 0; i < arrayHoWeight.GetLength(1); i++)
+            for (int i = 0; i < oGrads.Length; i++)
             {
-                double derivative = (1 - listResult[1].ElementAt(i)) * listResult[1].ElementAt(i);
-                oGrads[i] = derivative * (tValues[i] * listResult[1].ElementAt(i));
+                double derivative = (1 - lastListResult[1].ElementAt(i)) * lastListResult[1].ElementAt(i);
+                oGrads[i] = derivative * (tValues[i] - lastListResult[1].ElementAt(i));
             }
 
             //Compute Hidden grad
-            for (int i = 0; i < arrayHoWeight.GetLength(0); i++)
+            for (int i = 0; i < hGrads.Length; i++)
             {
-                double derivative = (1 - listResult[0].ElementAt(i)) * (1 + listResult[0].ElementAt(i));
-                double somme = 0;
+                double derivative = (1 - lastListResult[0].ElementAt(i)) * (1 + lastListResult[0].ElementAt(i));
+                double somme = 0.0;
                 for (int j = 0; j < arrayHoWeight.GetLength(1); j++)
                 {
                     somme = somme + oGrads[j] * arrayHoWeight[i, j];
                 }
-                hGrads[i] = derivative + somme;
+                hGrads[i] = derivative * somme;
             }
 
             // Update Input-hidden weights
             for (int i = 0; i < arrayIhWeight.GetLength(0); i++)
-
+            {
                 for (int j = 0; j < arrayIhWeight.GetLength(1); j++)
                 {
-                    double delta = learnRate * hGrads[j] *listInput[i];
+                    double delta = learnRate * hGrads[j] * listInput[i];
                     arrayIhWeight[i, j] += delta;
                     arrayIhWeight[i, j] += momentum * ihPrevWeightsDelta[i, j];
                     arrayIhWeight[i, j] -= (weightDecay * arrayIhWeight[i, j]);
                     ihPrevWeightsDelta[i, j] = delta;
                 }
+            }
 
             // Update Hidden Bias
-            for (int i = 0; i < arrayHoWeight.GetLength(0); i++)
+            for (int i = 0; i < arrayBiasHidden.Length; i++)
             {
-                double delta = learnRate * hGrads[i];
+                double delta = learnRate * hGrads[i]*1.0;
                 arrayBiasHidden[i] += delta;
                 arrayBiasHidden[i] += momentum * hPrevBiasesDelta[i];
                 arrayBiasHidden[i] -= (weightDecay * arrayBiasHidden[i]);
@@ -228,26 +244,25 @@ namespace NeuroNetwork.engine
 
             // Update hidden-output weights
             for (int i = 0; i < arrayHoWeight.GetLength(0); i++)
-
+            {
                 for (int j = 0; j < arrayHoWeight.GetLength(1); j++)
                 {
-                    double delta = learnRate * oGrads[j] * listResult[0].ElementAt(i);
+                    double delta = learnRate * oGrads[j] * lastListResult[0].ElementAt(i);
                     arrayHoWeight[i, j] += delta;
                     arrayHoWeight[i, j] += momentum * hoPrevWeightsDelta[i, j];
                     arrayHoWeight[i, j] -= (weightDecay * arrayHoWeight[i, j]);
                     hoPrevWeightsDelta[i, j] = delta;
                 }
-
+            }
 
             // Update output Bias
-            for (int i = 0; i < arrayHoWeight.GetLength(1); i++)
+            for (int i = 0; i < arrayBiasOutput.Length; i++)
             {
-                double delta = learnRate * oGrads[i];
+                double delta = learnRate * oGrads[i]*1.0;
                 arrayBiasOutput[i] += delta;
                 arrayBiasOutput[i] += momentum * oPrevBiasesDelta[i];
                 arrayBiasOutput[i] -= (weightDecay * arrayBiasOutput[i]);
                 oPrevBiasesDelta[i] = delta;
-
             }
         }
 
@@ -263,6 +278,7 @@ namespace NeuroNetwork.engine
 
             while (epoch < maxEpochs)
             {
+                lastTrainEpochs = epoch;
                 double mse = MeanSquaredError(trainData);
                 if (mse < 0.020) break; // consider passing value in as parameter
                                         //if (mse < 0.001) break; // consider passing value in as parameter
@@ -272,63 +288,12 @@ namespace NeuroNetwork.engine
                 {
                     int idx = sequence[i];
                     Array.Copy(trainData[idx], inputValues, arrayIhWeight.GetLength(0));
-                    Array.Copy(trainData[idx], arrayIhWeight.GetLength(0)-1, testvalues, 0, arrayHoWeight.GetLength(1));
-                    Resolve(inputValues); // copy xValues in, compute outputs (store them internally)
+                    Array.Copy(trainData[idx], arrayIhWeight.GetLength(0), testvalues, 0, arrayHoWeight.GetLength(1));
+                    lastListResult=Resolve(inputValues); // copy xValues in, compute outputs (store them internally)
                     UpdateWeights(testvalues, learnRate, momentum, weightDecay); // find better weights
                 } // each training tuple
                 ++epoch;
-            }
-        }
-
-        public void MakeTest(double[][] allDatas, ref double[][] trainDatas, ref double[][] testDatas)
-        {
-            int trainCount = Convert.ToInt16(0.8 * allDatas.Length);
-            int testCount = allDatas.Length - trainCount;
-
-            trainDatas = new double[trainCount][];
-            testDatas = new double[testCount][];
-
-            List<int> indexList=new List<int>();
-            for (int i = 149; i>= 0; i--)
-            {
-                indexList.Add(i);
-            }
-
-            /// pour chque ligne du alldatas
-            for (int j = 0; j < allDatas.Length; j++)
-            {
-                int randomIndex = rnd.Next(0, indexList.Count);
-
-                /// soit aucun index atteint, soit un des deux, soit aucun
-                if (trainCount > 0 && testCount > 0)
-                    {
-                        int randomDataSet = rnd.Next(0, 1);
-                    if (randomDataSet == 0)
-                    {
-                        trainDatas[trainCount-1] = allDatas[indexList.ElementAt(randomIndex)];
-                        indexList.Remove(randomIndex);
-                        trainCount--;
-                    }
-                    else
-                    {
-                        testDatas[testCount-1] = allDatas[indexList.ElementAt(randomIndex)];
-                        indexList.Remove(randomIndex);
-                        testCount--;
-                    }
-                }
-                else if(trainCount>0)
-                    {
-                    trainDatas[trainCount-1] = allDatas[indexList.ElementAt(randomIndex)];
-                    indexList.Remove(randomIndex);
-                    trainCount--;
-                }
-                else 
-                {
-                    testDatas[testCount-1] = allDatas[indexList.ElementAt(randomIndex)];
-                    indexList.Remove(randomIndex);
-                    testCount--;
-                }
-            }
+            }           
         }
 
         private static void Shuffle(int[] sequence)
@@ -342,7 +307,6 @@ namespace NeuroNetwork.engine
             }
         }
 
-
         private double MeanSquaredError(double[][] trainData) // used as a training stopping condition
         {
             // average squared error per training tuple
@@ -354,7 +318,7 @@ namespace NeuroNetwork.engine
             for (int i = 0; i < trainData.Length; ++i)
             {
                 Array.Copy(trainData[i], xValues, arrayIhWeight.GetLength(0));
-                Array.Copy(trainData[i], arrayIhWeight.GetLength(0), tValues, 0, arrayHoWeight.GetLength(1)-1); // get target values
+                Array.Copy(trainData[i], arrayIhWeight.GetLength(0), tValues, 0, arrayHoWeight.GetLength(1)); // get target values
                 double[] yValues = this.Resolve(xValues)[1].ToArray() ; // compute output using current weights
                 for (int j = 0; j < arrayHoWeight.GetLength(1); ++j)
                 {
@@ -362,12 +326,14 @@ namespace NeuroNetwork.engine
                     sumSquaredError += err * err;
                 }
             }
-
+           
             return sumSquaredError / trainData.Length;
         }
 
-    
 
+        //////////////////////////////////
+        /// display functions
+       //////////////////////////////////
 
         public List<string> getWeightsList()
         {
@@ -380,7 +346,7 @@ namespace NeuroNetwork.engine
                 strB.Append("ih" + i + " : ");
                 for (int j = 0; j < arrayIhWeight.GetLength(1);j++)
                 {
-                    strB.Append(arrayIhWeight[i, j].ToString().Substring(0,5)+"/"+ arrayBiasHidden[j].ToString().Substring(0, 5) + " ||  ");
+                    strB.Append(arrayIhWeight[i, j].ToString().Substring(0,6)+"/"+ arrayBiasHidden[j].ToString().Substring(0, 6) + " ||  ");
                 }
                 
                 ret.Add(strB.ToString());
@@ -392,12 +358,90 @@ namespace NeuroNetwork.engine
                 strB.Append("oh" + i + " : ");
                 for (int j = 0; j < arrayHoWeight.GetLength(1); j++)
                 {
-                    strB.Append(arrayHoWeight[i, j].ToString().Substring(0, 4) + "/" + arrayBiasOutput[j].ToString().Substring(0, 4) + " ||  ");
+                    strB.Append(arrayHoWeight[i, j].ToString().Substring(0, 6) + "/" + arrayBiasOutput[j].ToString().Substring(0, 6) + " ||  ");
                 }
 
                 ret.Add(strB.ToString());
             }
             return ret;
         }
+        
+        public double AccuracyOld(double[][] datas)
+        {
+            double[] inputs = new double[arrayIhWeight.GetLength(0)];
+            double[] rightResult = new double[arrayHoWeight.GetLength(1)];
+            int correctAnswers = 0;
+
+            // pour chaque ligne des données
+            for (int i = 0; i < datas.Length; ++i)
+            {
+                // résout la ligne
+                Array.Copy(datas[i], inputs, arrayIhWeight.GetLength(0));
+                Array.Copy(datas[i], arrayIhWeight.GetLength(0), rightResult, 0, arrayHoWeight.GetLength(1));
+                List<double>[] listOutput = Resolve(inputs);
+
+                // check si le résultat est bon
+                int resultIndex = 0;
+                double bestValue = listOutput[1].ElementAt(0);
+                for (int j=0;j<listOutput[1].Count;j++)
+                {
+                    if (listOutput[1].ElementAt(j)>bestValue)
+                    {
+                        resultIndex = j;
+                        bestValue = listOutput[1].ElementAt(j);
+                    }
+                }
+                if (rightResult[resultIndex] == 1.0)
+                {
+                    correctAnswers++;
+                }
+            }
+            return (correctAnswers*1.0) / datas.Length;
+
+        }
+
+
+        public double Accuracy(double[][] testData)
+        {
+            // percentage correct using winner-takes all
+            int numCorrect = 0;
+            int numWrong = 0;
+            double[] xValues = new double[arrayIhWeight.GetLength(0)]; // inputs
+            double[] tValues = new double[arrayHoWeight.GetLength(1)]; // targets
+            double[] yValues; // computed Y
+
+            for (int i = 0; i < testData.Length; ++i)
+            {
+                Array.Copy(testData[i], xValues, arrayIhWeight.GetLength(0)); // parse test data into x-values and t-values
+                Array.Copy(testData[i], arrayIhWeight.GetLength(0), tValues, 0, arrayHoWeight.GetLength(1));
+                
+                List<double> inputList = new List<double>();
+              
+                yValues = Resolve(xValues)[1].ToArray<double>(); ;
+                int maxIndex = MaxIndex(yValues); // which cell in yValues has largest value?
+
+                if (tValues[maxIndex] == 1.0) // ugly. consider AreEqual(double x, double y)
+                    ++numCorrect;
+                else
+                    ++numWrong;
+            }
+            return (numCorrect * 1.0) / (numCorrect + numWrong); // ugly 2 - check for divide by zero
+        }
+
+        private static int MaxIndex(double[] vector) // helper for Accuracy()
+        {
+            // index of largest value
+            int bigIndex = 0;
+            double biggestVal = vector[0];
+            for (int i = 0; i < vector.Length; ++i)
+            {
+                if (vector[i] > biggestVal)
+                {
+                    biggestVal = vector[i]; bigIndex = i;
+                }
+            }
+            return bigIndex;
+        }
     }
+
 }
