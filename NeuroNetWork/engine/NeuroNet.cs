@@ -1,16 +1,22 @@
-﻿using System;
+﻿using Microsoft.Practices.Unity;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using NeuroNetwork.engine.entities;
+using System.Windows;
 
-
-namespace NeuroNetwork.engine
+namespace NeuroNetwork
 {
-    class NeuroNet
+    public class NeuroNet: DependencyObject 
     {
-        private static Random rnd= new Random(0);
+        // private static Random rnd= new Random(0);
+
+
+        int maxEpochs = 2000;
+        double learnRate = 0.05;
+        double momentum = 0.01;
+        double weightDecay = 0.0001;
 
         private double[,] arrayIhWeight;
         private double[,] arrayHoWeight;
@@ -29,12 +35,19 @@ namespace NeuroNetwork.engine
         private double[] oGrads ; // output gradients for back-propagation
         private double[] hGrads ; // hidden gradients for back-propagation
        
-        int lastTrainEpochs;       
+        int lastTrainEpochs;
 
+        private Random rnd;
 
-    
-        public NeuroNet(int inputscount, int hiddenCount, int outputCount) {
-                     
+        public NeuroNet()
+        {
+
+        }
+        
+        public void SetNeuroNet(int inputscount, int hiddenCount, int outputCount) {
+
+            rnd = new Random(0);
+
             arrayIhWeight = new double[inputscount, hiddenCount];
             arrayHoWeight = new double[hiddenCount, outputCount];
             arrayBiasHidden = new double[arrayIhWeight.GetLength(1)];
@@ -49,10 +62,6 @@ namespace NeuroNetwork.engine
 
             oGrads = new double[arrayHoWeight.GetLength(1)];
             hGrads = new double[arrayHoWeight.GetLength(0)];
-
-
-          
-
             
             /////////// Initialisation des poids et des biais /////////////////////////////
             double lo = -0.01;
@@ -74,10 +83,8 @@ namespace NeuroNetwork.engine
                    arrayBiasOutput[j] = (hi - lo) * rnd.NextDouble() + lo;
                     arrayHoWeight[i, j] = (hi - lo) * rnd.NextDouble() + lo;
                 }
-            }    
-                  
+            }                      
         }
-
         
 
         //////////////////////////////////
@@ -100,8 +107,7 @@ namespace NeuroNetwork.engine
                
                 for(int j=0;j<listInput.Count;++j)
                 {
-                    weightInputSum +=  (arrayIhWeight[j, i] * listInput.ElementAt(j));
-                  
+                    weightInputSum +=  (arrayIhWeight[j, i] * listInput.ElementAt(j));                  
                 }
                 listResult[0].Add(HyperbolicTan(weightInputSum)); // remplit la liste des résultats avec les valeurs après activation des neurones hidden
             }
@@ -266,29 +272,31 @@ namespace NeuroNetwork.engine
             }
         }
 
-        public void Train(double[][] trainData, int maxEpochs, double learnRate, double momentum, double weightDecay)
+        //public void Train(double[][] trainData, int maxEpochs, double learnRate, double momentum, double weightDecay)
+
+        public void Train(IrisFlower iris)
         {
             int epoch = 0;
             double[] inputValues = new double[arrayIhWeight.GetLength(0)];
             double[] testvalues = new double[arrayHoWeight.GetLength(1)];
 
-            int[] sequence = new int[trainData.GetLength(0)];
+            int[] sequence = new int[iris.trainDatas.GetLength(0)];
             for (int i = 0; i < sequence.Length; ++i)
                 sequence[i] = i;
 
             while (epoch < maxEpochs)
             {
                 lastTrainEpochs = epoch;
-                double mse = MeanSquaredError(trainData);
+                double mse = MeanSquaredError(iris.trainDatas);
                 if (mse < 0.020) break; // consider passing value in as parameter
                                         //if (mse < 0.001) break; // consider passing value in as parameter
 
                 Shuffle(sequence); // visit each training data in random order
-                for (int i = 0; i < trainData.Length; ++i)
+                for (int i = 0; i < iris.trainDatas.Length; ++i)
                 {
                     int idx = sequence[i];
-                    Array.Copy(trainData[idx], inputValues, arrayIhWeight.GetLength(0));
-                    Array.Copy(trainData[idx], arrayIhWeight.GetLength(0), testvalues, 0, arrayHoWeight.GetLength(1));
+                    Array.Copy(iris.trainDatas[idx], inputValues, arrayIhWeight.GetLength(0));
+                    Array.Copy(iris.trainDatas[idx], arrayIhWeight.GetLength(0), testvalues, 0, arrayHoWeight.GetLength(1));
                     lastListResult=Resolve(inputValues); // copy xValues in, compute outputs (store them internally)
                     UpdateWeights(testvalues, learnRate, momentum, weightDecay); // find better weights
                 } // each training tuple
@@ -296,7 +304,7 @@ namespace NeuroNetwork.engine
             }           
         }
 
-        private static void Shuffle(int[] sequence)
+        private void Shuffle(int[] sequence)
         {
             for (int i = 0; i < sequence.Length; ++i)
             {

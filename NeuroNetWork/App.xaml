@@ -1,9 +1,8 @@
-﻿<Application x:Class="NeuroNetWork.App"
+﻿<Application x:Class="NeuroNetwork.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:NeuroNetWork"
-             StartupUri="MainWindow.xaml">
-    <Application.Resources>
-         
+            >
+    <Application.Resources>         
     </Application.Resources>
 </Application>

@@ -1,0 +1,18 @@
+﻿<Window x:Class="NeuroNetwork.CreateWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:NeuroNetwork"
+       
+        mc:Ignorable="d"
+        Title="CreateWindow" Height="201.055" Width="300">
+    <Grid Margin="0,0,0,2">
+        <TextBlock x:Name="textBlock1" HorizontalAlignment="Left" Margin="56,77,0,0" TextWrapping="Wrap" Text="Nombre Neurones" VerticalAlignment="Top" Height="16" Width="103" FontSize="10.667" TextAlignment="Right"/>
+     
+        <Button  Command="{x:Static local:CreateCommand.createNet}" x:Name="createButton" Content="Créer Réseau" HorizontalAlignment="Left" Height="26" Margin="90,111,0,0" VerticalAlignment="Top" Width="97" IsDefault="True" RenderTransformOrigin="1.485,0.538"/>
+        <ListBox x:Name="listClassesData" HorizontalAlignment="Left" Height="18" Margin="56,33,0,0" VerticalAlignment="Top" Width="180"/>
+        <TextBox x:Name="NeuroneCountInput" HorizontalAlignment="Left" Margin="181,75,0,76" TextWrapping="Wrap" Text="10" RenderTransformOrigin="0.208,-0.472" FontSize="8"/>
+
+    </Grid>
+</Window>

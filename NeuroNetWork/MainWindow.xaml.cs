@@ -12,28 +12,36 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using Microsoft.Practices.Unity;
 
-using NeuroNetwork.engine;
 
-namespace NeuroNetWork
+namespace NeuroNetwork
 {
     /// <summary>
     /// Logique d'interaction pour MainWindow.xaml
     /// </summary>
     public partial class MainWindow : Window
     {
-
-        NeuroNet neuroNet;
-        List<double>[] results;
-        IrisFlower irisFlowerSet;
-
+      
+       
+        ReadNumber readNumber;
+        
         double[] inputs;
 
-        int maxEpochs = 2000;
-        double learnRate = 0.05;
-        double momentum = 0.01;
-        double weightDecay = 0.0001;
 
+        private NeuroNetViewmodel _vm;
+      
+
+        [Dependency]
+        public NeuroNetViewmodel vm
+        {
+            set
+            {
+                _vm = value;
+               this.DataContext = _vm;
+            }
+        }
+       
         public MainWindow()
         {
             InitializeComponent();
@@ -42,7 +50,8 @@ namespace NeuroNetWork
             customCulture.NumberFormat.NumberDecimalSeparator = ".";
 
             System.Threading.Thread.CurrentThread.CurrentCulture = customCulture;
-            TextBox txtNumber = new TextBox();
+        
+           
         }
 
         private void button_Click(object sender, RoutedEventArgs e)
@@ -51,10 +60,12 @@ namespace NeuroNetWork
             Color CreatingColor = Color.FromRgb(0, 150, 150);
             createButton.Background = new SolidColorBrush(CreatingColor);
 
-            neuroNet = new NeuroNet(Convert.ToInt16(InputCount.Text), Convert.ToInt16(NeuroneCount.Text), Convert.ToInt16(OutputCount.Text));
+            Console.WriteLine("test");
+                    
+            //irisFlowerSet = new IrisFlower();
 
-            irisFlowerSet = new IrisFlower();
-            WeightBiasBox.ItemsSource = neuroNet.getWeightsList();
+
+            WeightBiasBox.ItemsSource = _vm.neuroNet.getWeightsList();
 
             Color CreatedColor = Color.FromRgb(0, 200, 0);
             createButton.Background = new SolidColorBrush(CreatedColor);
@@ -62,6 +73,8 @@ namespace NeuroNetWork
 
         private void compute_Click(object sender, RoutedEventArgs e)
         {
+
+            /*
             inputs = new double[4];
             inputs[0] = Convert.ToDouble(input1.Text);
             inputs[1] = Convert.ToDouble(input2.Text);
@@ -69,8 +82,10 @@ namespace NeuroNetWork
             inputs[3] = Convert.ToDouble(input4.Text);
 
             irisFlowerSet.NormalizeOneInput(inputs);
+            */
+            inputs=readNumber.GetinputsOneTest();
             normalizedInputsBox.ItemsSource = inputs;
-            List<double> listOuputResult = neuroNet.Resolve(inputs)[1].ToList();
+            List<double> listOuputResult = _vm.neuroNet.Resolve(inputs)[1].ToList();
             OutputBox.ItemsSource = listOuputResult;
         }
 
@@ -78,20 +93,22 @@ namespace NeuroNetWork
         {
             Color trainingColor = Color.FromRgb(0, 150, 150);
             train.Background = new SolidColorBrush(trainingColor);
-         
-            neuroNet.Train(irisFlowerSet.trainDatas, maxEpochs, learnRate, momentum, weightDecay);
-
-            WeightBiasFinalBox.ItemsSource = neuroNet.getWeightsList();
-            epochsBox.Text = neuroNet.GetLastEpochs().ToString();
+            _vm.neuroNet.Train(_vm.irisFlower);
+            WeightBiasFinalBox.ItemsSource = _vm.neuroNet.getWeightsList();
+            epochsBox.Text = _vm.neuroNet.GetLastEpochs().ToString();
             
-            accuracyTrainBox.Text= neuroNet.Accuracy(irisFlowerSet.trainDatas).ToString();
-            accuracyTestBox.Text = neuroNet.Accuracy(irisFlowerSet.testDatas).ToString();
+            accuracyTrainBox.Text= _vm.neuroNet.Accuracy(_vm.irisFlower.trainDatas).ToString();
+            accuracyTestBox.Text = _vm.neuroNet.Accuracy(_vm.irisFlower.testDatas).ToString();
 
             Color trainedColor = Color.FromRgb(0, 200, 0);
 
             train.Background = new SolidColorBrush(trainedColor);
         }
 
-       
+        private void ButtonMenuCreate_Click(object sender, RoutedEventArgs e)
+        {
+            CreateWindow createWin =new CreateWindow(_vm);
+            createWin.Show();
+        }
     }
 }
