@@ -1,2 +1,2 @@
 # NeuroNetwork
-initiation réseaux de neurones (WPF)
+test et initiation réseaux de neurones 
